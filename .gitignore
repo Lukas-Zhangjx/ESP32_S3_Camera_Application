@@ -1,0 +1,6 @@
+build/
+sdkconfig.old
+*.o
+*.elf
+*.bin
+*.map
