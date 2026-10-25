@@ -20,99 +20,98 @@ menu "Camera Configuration"
         default 15
         help
             默认值来自 ICGOICIC ESP32-S3-WROOM N16R8 CAM 板级 pinout 图（CAM_XCLK），
-            与常见同类板子流传的引脚定义一致，但未经本机实测，如初始化失败请用万用
-            表对 FPC 插座做导通测试核实。
+            已在实机上烧录验证，摄像头能正常初始化并采集帧。
 
     config CAMERA_PIN_SIOD
         int "SIOD(SDA) GPIO"
         range -1 48
         default 4
         help
-            默认值来自板级 pinout 图（CAM_SIOD），未经本机实测。
+            默认值来自板级 pinout 图（CAM_SIOD），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_SIOC
         int "SIOC(SCL) GPIO"
         range -1 48
         default 5
         help
-            默认值来自板级 pinout 图（CAM_SIOC），未经本机实测。
+            默认值来自板级 pinout 图（CAM_SIOC），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D0
         int "D0 GPIO"
         range -1 48
         default 11
         help
-            默认值来自板级 pinout 图（CAM_Y2 对应 D0），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y2 对应 D0），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D1
         int "D1 GPIO"
         range -1 48
         default 9
         help
-            默认值来自板级 pinout 图（CAM_Y3 对应 D1），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y3 对应 D1），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D2
         int "D2 GPIO"
         range -1 48
         default 8
         help
-            默认值来自板级 pinout 图（CAM_Y4 对应 D2），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y4 对应 D2），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D3
         int "D3 GPIO"
         range -1 48
         default 10
         help
-            默认值来自板级 pinout 图（CAM_Y5 对应 D3），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y5 对应 D3），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D4
         int "D4 GPIO"
         range -1 48
         default 12
         help
-            默认值来自板级 pinout 图（CAM_Y6 对应 D4），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y6 对应 D4），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D5
         int "D5 GPIO"
         range -1 48
         default 18
         help
-            默认值来自板级 pinout 图（CAM_Y7 对应 D5），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y7 对应 D5），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D6
         int "D6 GPIO"
         range -1 48
         default 17
         help
-            默认值来自板级 pinout 图（CAM_Y8 对应 D6），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y8 对应 D6），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_D7
         int "D7 GPIO"
         range -1 48
         default 16
         help
-            默认值来自板级 pinout 图（CAM_Y9 对应 D7），未经本机实测。
+            默认值来自板级 pinout 图（CAM_Y9 对应 D7），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_VSYNC
         int "VSYNC GPIO"
         range -1 48
         default 6
         help
-            默认值来自板级 pinout 图（CAM_VSYNC），未经本机实测。
+            默认值来自板级 pinout 图（CAM_VSYNC），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_HREF
         int "HREF GPIO"
         range -1 48
         default 7
         help
-            默认值来自板级 pinout 图（CAM_HREF），未经本机实测。
+            默认值来自板级 pinout 图（CAM_HREF），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_PIN_PCLK
         int "PCLK GPIO"
         range -1 48
         default 13
         help
-            默认值来自板级 pinout 图（CAM_PCLK），未经本机实测。
+            默认值来自板级 pinout 图（CAM_PCLK），已在 ICGOICIC ESP32-S3-WROOM N16R8 CAM + OV3660 实机上烧录验证，采集帧成功。
 
     config CAMERA_XCLK_FREQ_HZ
         int "XCLK 频率（Hz）"
