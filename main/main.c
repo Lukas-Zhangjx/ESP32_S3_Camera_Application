@@ -1,8 +1,8 @@
 /*
  * 应用入口
- * 功能概述：组装各功能模块，不实现具体业务逻辑。当前只调用 camera 模块完成
- * 初始化并循环采集一帧图像打印大小，用于验证摄像头链路是否跑通。
- * 依赖：camera 模块
+ * 功能概述：组装各功能模块，不实现具体业务逻辑。流程：WiFi 连接 → 摄像头
+ * 初始化 → MQTT 桥接初始化；收到 MQTT 拍照指令后拍一张照并发布出去。
+ * 依赖：wifi、camera、mqtt_bridge 模块
  */
 #include <stdint.h>
 
@@ -10,32 +10,61 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mqtt_bridge.h"
+#include "wifi.h"
 
 static const char *TAG = "app_main";
 
-void app_main(void)
+/*
+ * 功能：收到 MQTT 拍照指令时的回调，拍一张照并发布出去
+ * 参数：无
+ * 返回：无
+ */
+static void on_capture_cmd(void)
 {
-    esp_err_t err = camera_init();
-    if (err != ESP_OK) {
-        /* 初始化失败属于不可恢复的配置问题（引脚未配置/探测失败），打日志后退出，不卡死 */
-        ESP_LOGE(TAG, "camera_init failed: 0x%x, fallback: stop demo loop", err);
+    uint8_t *buf = NULL;
+    size_t len = 0;
+    void *handle = NULL;
+
+    esp_err_t cap_err = camera_capture(&buf, &len, &handle, 2000);
+    if (cap_err != ESP_OK) {
+        ESP_LOGW(TAG, "capture failed: 0x%x, fallback: skip this request", cap_err);
         return;
     }
 
+    esp_err_t pub_err = mqtt_bridge_publish_photo(buf, len, 3000);
+    if (pub_err != ESP_OK) {
+        ESP_LOGW(TAG, "publish failed: 0x%x", pub_err);
+    } else {
+        ESP_LOGI(TAG, "published photo, %u bytes", (unsigned)len);
+    }
+
+    camera_release_frame(handle);
+}
+
+void app_main(void)
+{
+    esp_err_t err = wifi_init(CONFIG_WIFI_CONNECT_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "wifi_init failed: 0x%x, fallback: stop", err);
+        return;
+    }
+
+    err = camera_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "camera_init failed: 0x%x, fallback: stop", err);
+        return;
+    }
+
+    err = mqtt_bridge_init(on_capture_cmd, 10000);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "mqtt_bridge_init failed: 0x%x, fallback: stop", err);
+        return;
+    }
+
+    ESP_LOGI(TAG, "ready, waiting for capture command via MQTT");
+
     while (true) {
-        uint8_t *buf = NULL;
-        size_t len = 0;
-        void *handle = NULL;
-
-        /* 单帧采集最多等待 2 秒，超时则跳过本次，不无限阻塞 */
-        esp_err_t cap_err = camera_capture(&buf, &len, &handle, 2000);
-        if (cap_err == ESP_OK) {
-            ESP_LOGI(TAG, "captured frame, %u bytes", (unsigned)len);
-            camera_release_frame(handle);
-        } else {
-            ESP_LOGW(TAG, "capture failed: 0x%x, retry next loop", cap_err);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
     }
 }
