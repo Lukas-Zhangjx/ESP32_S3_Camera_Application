@@ -5,9 +5,11 @@
 ## 分支规范
 
 * 禁止直接在 `main` / `master` 分支上提交代码
+* **不管是新功能、Bug 修复，还是对现有功能的调整/优化，哪怕改动很小，都必须先拉分支，禁止因为"只是小调整"就直接在 `main` 上改**
 * 所有开发必须先创建功能分支：
   * 新功能：`feature/描述`，例如 `feature/uart-init`
   * Bug 修复：`bugfix/描述`，例如 `bugfix/can-timeout`
+  * 功能调整/优化：同样用 `feature/描述`，例如 `feature/camera-pin-tune`
 * 完成开发并提交后，询问用户是否需要 merge 回主分支
 
 ## 编码规范
