@@ -1,0 +1,22 @@
+menu "MQTT Bridge Configuration"
+
+    config MQTT_BRIDGE_BROKER_URI
+        string "MQTT Broker URI"
+        default "mqtt://broker.emqx.io:1883"
+        help
+            默认是公共免费测试 Broker，无鉴权，仅用于验证流程。长期使用
+            建议换成有账号鉴权的云厂商 IoT 平台地址。
+
+    config MQTT_BRIDGE_CMD_TOPIC
+        string "拍照指令 Topic"
+        default "esp32cam/s3/capture/cmd"
+        help
+            订阅此 topic，收到任意消息即触发一次拍照。
+
+    config MQTT_BRIDGE_IMAGE_TOPIC
+        string "图片发布 Topic"
+        default "esp32cam/s3/capture/image"
+        help
+            拍到的 JPEG 原始数据发布到此 topic。
+
+endmenu
