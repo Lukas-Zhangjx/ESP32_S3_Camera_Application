@@ -1,0 +1,10 @@
+menu "WiFi Configuration"
+
+    config WIFI_CONNECT_TIMEOUT_MS
+        int "WiFi 连接超时时间（毫秒）"
+        default 15000
+        help
+            wifi_init() 等待连接成功的最长时间，超时后返回 ESP_ERR_TIMEOUT。
+            SSID/密码不在这里配置，见 wifi_secrets.h.example。
+
+endmenu
