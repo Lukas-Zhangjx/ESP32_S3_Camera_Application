@@ -2,7 +2,7 @@
  * 推流服务模块实现
  * 功能概述：内部跑一个工作任务，推流开启时按固定间隔取帧并发布；
  * 单张抓拍和推流共用同一把锁，避免同时抢摄像头帧缓冲区。
- * 依赖：camera.h、mqtt_bridge.h 的公开接口
+ * 依赖：camera.h、mqtt_bridge.h、storage.h 的公开接口
  */
 #include "stream_service.h"
 
@@ -14,6 +14,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mqtt_bridge.h"
+#include "storage.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "stream_service";
@@ -30,12 +31,13 @@ static SemaphoreHandle_t s_lock = NULL;
 static volatile bool s_streaming = false;
 
 /*
- * 功能：取一帧并发布出去
+ * 功能：取一帧并发布出去，可选同时存一份到 SD 卡
  * 参数：qos MQTT 服务质量（1 单张抓拍，0 连续推流）
  *       log_ok 成功时是否打日志（推流时每帧都打会刷屏）
+ *       save_to_sd 是否存一份到 SD 卡（推流每帧都存会很快写满卡，默认只存单张抓拍）
  * 返回：无；任何一步失败都打日志并返回，不重试
  */
-static void stream_service_publish_frame(int qos, bool log_ok)
+static void stream_service_publish_frame(int qos, bool log_ok, bool save_to_sd)
 {
     /* 单张抓拍和推流可能来自不同任务，用锁串行化，避免同时抢帧缓冲区 */
     if (xSemaphoreTake(s_lock, pdMS_TO_TICKS(STREAM_LOCK_TIMEOUT)) != pdTRUE) {
@@ -55,6 +57,10 @@ static void stream_service_publish_frame(int qos, bool log_ok)
         return;
     }
     int64_t t1 = esp_timer_get_time();
+
+    if (save_to_sd && storage_is_ready()) {
+        storage_save_jpeg(buf, len);
+    }
 
     err = mqtt_bridge_publish_photo(buf, len, qos, STREAM_PUBLISH_TIMEOUT);
     int64_t t2 = esp_timer_get_time();
@@ -83,7 +89,7 @@ static void stream_service_task(void *arg)
             continue;
         }
         /* 推流帧用 QoS 0：丢一帧无所谓，省掉等待确认的一次往返 */
-        stream_service_publish_frame(0, false);
+        stream_service_publish_frame(0, false, false);
         vTaskDelay(pdMS_TO_TICKS(CONFIG_STREAM_SERVICE_INTERVAL_MS));
     }
 }
@@ -107,7 +113,7 @@ esp_err_t stream_service_init(void)
 
 void stream_service_capture_once(void)
 {
-    stream_service_publish_frame(1, true);
+    stream_service_publish_frame(1, true, true);
 }
 
 void stream_service_start(void)

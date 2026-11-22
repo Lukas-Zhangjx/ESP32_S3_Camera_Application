@@ -3,7 +3,7 @@
  * 功能概述：组装各功能模块，不实现具体业务逻辑。流程：WiFi 连接 → 摄像头
  * 初始化 → 推流服务初始化 → MQTT 桥接初始化；收到 MQTT 指令后按内容分发给
  * 推流服务。
- * 依赖：wifi、camera、mqtt_bridge、stream_service 模块
+ * 依赖：wifi、camera、storage、mqtt_bridge、stream_service 模块
  */
 #include <string.h>
 
@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_bridge.h"
+#include "storage.h"
 #include "stream_service.h"
 #include "wifi.h"
 
@@ -47,6 +48,11 @@ void app_main(void)
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "camera_init failed: 0x%x, fallback: stop", err);
         return;
+    }
+
+    /* SD 卡是可选能力：没插卡也要能正常拍照推流，所以失败只警告不中断 */
+    if (storage_init() != ESP_OK) {
+        ESP_LOGW(TAG, "storage unavailable, photos will not be saved to SD card");
     }
 
     err = stream_service_init();

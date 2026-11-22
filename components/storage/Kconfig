@@ -1,0 +1,34 @@
+menu "Storage Configuration"
+
+    config STORAGE_MOUNT_POINT
+        string "SD 卡挂载点"
+        default "/sdcard"
+
+    config STORAGE_PIN_CLK
+        int "SD CLK GPIO"
+        range 0 48
+        default 39
+        help
+            默认值来自板级 pinout 图（SD_CLK）。板载 microSD 走 SDMMC 1-bit 模式。
+
+    config STORAGE_PIN_CMD
+        int "SD CMD GPIO"
+        range 0 48
+        default 38
+        help
+            默认值来自板级 pinout 图（SD_CMD）。
+
+    config STORAGE_PIN_D0
+        int "SD DATA0 GPIO"
+        range 0 48
+        default 40
+        help
+            默认值来自板级 pinout 图（SD_DATA）。1-bit 模式只用 DAT0。
+
+    config STORAGE_FREQ_KHZ
+        int "SD 时钟频率（kHz）"
+        default 20000
+        help
+            默认 20MHz。接触不良或杜邦线较长时可降到 10000（10MHz）试试。
+
+endmenu

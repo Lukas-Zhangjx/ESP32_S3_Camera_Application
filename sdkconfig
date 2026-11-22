@@ -2304,6 +2304,16 @@ CONFIG_MQTT_BRIDGE_IMAGE_TOPIC="esp32cam/s3/capture/image"
 # end of MQTT Bridge Configuration
 
 #
+# Storage Configuration
+#
+CONFIG_STORAGE_MOUNT_POINT="/sdcard"
+CONFIG_STORAGE_PIN_CLK=39
+CONFIG_STORAGE_PIN_CMD=38
+CONFIG_STORAGE_PIN_D0=40
+CONFIG_STORAGE_FREQ_KHZ=20000
+# end of Storage Configuration
+
+#
 # Stream Service Configuration
 #
 CONFIG_STREAM_SERVICE_INTERVAL_MS=50
