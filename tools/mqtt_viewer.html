@@ -103,6 +103,7 @@
       <div class="row">
         <button id="connBtn" class="secondary">连接</button>
         <button id="shotBtn" disabled>拍照</button>
+        <button id="liveBtn" disabled>实时</button>
       </div>
     </div>
   </div>
@@ -112,6 +113,7 @@
     <img id="shot" alt="摄像头画面" hidden>
     <div class="meta">
       <span id="sizeText">—</span>
+      <span id="fpsText"></span>
       <span id="timeText">—</span>
     </div>
   </div>
@@ -146,6 +148,8 @@
 <script>
 let client = null;
 let lastUrl = null;
+let live = false;
+let frameTimes = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -160,6 +164,16 @@ function setConnected(ok) {
   $("connText").textContent = ok ? "已连接" : "未连接";
   $("connBtn").textContent = ok ? "断开" : "连接";
   $("shotBtn").disabled = !ok;
+  $("liveBtn").disabled = !ok;
+  if (!ok) setLive(false);
+}
+
+function setLive(on) {
+  live = on;
+  frameTimes = [];
+  $("liveBtn").textContent = on ? "停止实时" : "实时";
+  $("liveBtn").className = on ? "" : "secondary";
+  if (!on) $("fpsText").textContent = "";
 }
 
 function connect() {
@@ -191,7 +205,19 @@ function connect() {
     $("placeholder").hidden = true;
     $("sizeText").textContent = (payload.length / 1024).toFixed(1) + " KB";
     $("timeText").textContent = new Date().toLocaleTimeString();
-    log("收到图片 " + payload.length + " 字节");
+
+    if (live) {
+      // 用最近若干帧的到达时间算实时帧率
+      const now = performance.now();
+      frameTimes.push(now);
+      if (frameTimes.length > 12) frameTimes.shift();
+      if (frameTimes.length >= 2) {
+        const span = (frameTimes[frameTimes.length - 1] - frameTimes[0]) / 1000;
+        $("fpsText").textContent = ((frameTimes.length - 1) / span).toFixed(1) + " fps";
+      }
+    } else {
+      log("收到图片 " + payload.length + " 字节");
+    }
   });
 
   client.on("error", (err) => log("错误: " + err.message));
@@ -213,6 +239,22 @@ $("shotBtn").addEventListener("click", () => {
   const topic = $("cmdTopic").value.trim();
   client.publish(topic, "go", { qos: 1 });
   log("已发送拍照指令 → " + topic);
+});
+
+$("liveBtn").addEventListener("click", () => {
+  if (!client || !client.connected) return;
+  const topic = $("cmdTopic").value.trim();
+  const next = !live;
+  client.publish(topic, next ? "start" : "stop", { qos: 1 });
+  setLive(next);
+  log(next ? "已开启实时推流" : "已停止实时推流");
+});
+
+// 关掉页面前通知板子停止推流，免得它一直空推
+window.addEventListener("beforeunload", () => {
+  if (live && client && client.connected) {
+    client.publish($("cmdTopic").value.trim(), "stop", { qos: 0 });
+  }
 });
 </script>
 </body>

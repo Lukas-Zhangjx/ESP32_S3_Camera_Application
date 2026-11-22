@@ -4,5 +4,5 @@
 idf_component_register(
     SRCS main.c
     INCLUDE_DIRS .
-    PRIV_REQUIRES camera wifi mqtt_bridge
+    PRIV_REQUIRES camera wifi mqtt_bridge stream_service
 )

@@ -26,9 +26,10 @@ PWDN / RESET 未连接（配置为 -1）。
 ```
 components/
 ├── camera/        摄像头初始化与取帧
+├── stream_service/ 单张抓拍与连续推流
 ├── wifi/          WiFi 连接
 └── mqtt_bridge/   MQTT 连接、订阅指令、发布图片
-main/              只做组装，把上面三个模块接起来
+main/              只做组装，把上面几个模块接起来
 tools/             调试辅助工具
 ```
 
@@ -66,10 +67,19 @@ idf.py -p /dev/cu.usbmodemXXXX flash monitor
 板子上电后会依次连接 WiFi、初始化摄像头、连接 MQTT Broker，日志出现
 `ready, waiting for capture command via MQTT` 即表示就绪。
 
-| 用途 | Topic |
-|---|---|
-| 发送拍照指令（内容任意） | `esp32cam/s3/capture/cmd` |
-| 接收 JPEG 图片数据 | `esp32cam/s3/capture/image` |
+| 用途 | Topic | 消息内容 |
+|---|---|---|
+| 拍单张 | `esp32cam/s3/capture/cmd` | 任意内容（如 `go`） |
+| 开始连续推流 | `esp32cam/s3/capture/cmd` | `start` |
+| 停止连续推流 | `esp32cam/s3/capture/cmd` | `stop` |
+| 接收 JPEG 图片数据 | `esp32cam/s3/capture/image` | — |
+
+连续推流时板子按 `Stream Service Configuration` 里配置的间隔自己持续拍照发布，
+用 QoS 0（丢帧可接受，省掉一次确认往返）；单张抓拍用 QoS 1 保证送达。
+
+实测通过 HiveMQ Cloud 约 **3.2 fps**（VGA，约 8.8KB/帧，带宽约 29KB/s）。
+瓶颈是每帧的 TLS 加密+上传耗时，不是摄像头（取帧只要 0~1ms）。想要更流畅的
+视频需要改用 RTSP 或 WebRTC，MQTT 这条路到不了那个量级。
 
 Broker 地址和 topic 可在 `idf.py menuconfig` → `MQTT Bridge Configuration` 中修改，
 用户名密码在 `mqtt_secrets.h` 里。当前使用 HiveMQ Cloud 私有集群，强制 TLS
@@ -88,7 +98,8 @@ MQTT Explorer 之类的通用客户端会把图片当文本显示成乱码，仓
 
 - 填入用户名密码（同 `mqtt_secrets.h` 里那组），点「连接」接入 Broker
   （走 MQTT over WebSocket Secure，`wss://`，端口 8884）
-- 点「拍照」下发指令
+- 点「拍照」下发单张抓拍指令
+- 点「实时」开启连续推流（再点一次停止），页面会显示实时帧率
 - 回传的 JPEG 直接渲染显示，并显示大小和时间
 - Broker 地址与 topic 可在页面上直接修改
 

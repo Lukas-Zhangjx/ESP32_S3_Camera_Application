@@ -1,0 +1,11 @@
+menu "Stream Service Configuration"
+
+    config STREAM_SERVICE_INTERVAL_MS
+        int "连续推流的帧间隔（毫秒）"
+        range 50 10000
+        default 50
+        help
+            推流开启时每隔多久拍一帧。实际帧率还受拍照耗时和网络往返限制，
+            填太小不会更快，只会让任务空转。200ms 对应目标 5fps。
+
+endmenu

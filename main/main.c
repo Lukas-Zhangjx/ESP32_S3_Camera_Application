@@ -1,45 +1,38 @@
 /*
  * 应用入口
  * 功能概述：组装各功能模块，不实现具体业务逻辑。流程：WiFi 连接 → 摄像头
- * 初始化 → MQTT 桥接初始化；收到 MQTT 拍照指令后拍一张照并发布出去。
- * 依赖：wifi、camera、mqtt_bridge 模块
+ * 初始化 → 推流服务初始化 → MQTT 桥接初始化；收到 MQTT 指令后按内容分发给
+ * 推流服务。
+ * 依赖：wifi、camera、mqtt_bridge、stream_service 模块
  */
-#include <stdint.h>
+#include <string.h>
 
 #include "camera.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_bridge.h"
+#include "stream_service.h"
 #include "wifi.h"
 
 static const char *TAG = "app_main";
 
 /*
- * 功能：收到 MQTT 拍照指令时的回调，拍一张照并发布出去
- * 参数：无
+ * 功能：收到 MQTT 指令时的回调，按指令内容分发
+ * 参数：payload 指令内容；payload_len 内容长度
  * 返回：无
+ *
+ * 指令约定："start" 开始连续推流，"stop" 停止，其他内容（含空）拍单张。
  */
-static void on_capture_cmd(void)
+static void on_mqtt_cmd(const char *payload, int payload_len)
 {
-    uint8_t *buf = NULL;
-    size_t len = 0;
-    void *handle = NULL;
-
-    esp_err_t cap_err = camera_capture(&buf, &len, &handle, 2000);
-    if (cap_err != ESP_OK) {
-        ESP_LOGW(TAG, "capture failed: 0x%x, fallback: skip this request", cap_err);
-        return;
-    }
-
-    esp_err_t pub_err = mqtt_bridge_publish_photo(buf, len, 3000);
-    if (pub_err != ESP_OK) {
-        ESP_LOGW(TAG, "publish failed: 0x%x", pub_err);
+    if (payload_len == 5 && strncmp(payload, "start", 5) == 0) {
+        stream_service_start();
+    } else if (payload_len == 4 && strncmp(payload, "stop", 4) == 0) {
+        stream_service_stop();
     } else {
-        ESP_LOGI(TAG, "published photo, %u bytes", (unsigned)len);
+        stream_service_capture_once();
     }
-
-    camera_release_frame(handle);
 }
 
 void app_main(void)
@@ -56,13 +49,19 @@ void app_main(void)
         return;
     }
 
-    err = mqtt_bridge_init(on_capture_cmd, 10000);
+    err = stream_service_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "stream_service_init failed: 0x%x, fallback: stop", err);
+        return;
+    }
+
+    err = mqtt_bridge_init(on_mqtt_cmd, 10000);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "mqtt_bridge_init failed: 0x%x, fallback: stop", err);
         return;
     }
 
-    ESP_LOGI(TAG, "ready, waiting for capture command via MQTT");
+    ESP_LOGI(TAG, "ready, waiting for command via MQTT");
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(10000));

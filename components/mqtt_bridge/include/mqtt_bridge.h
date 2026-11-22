@@ -12,11 +12,12 @@
 #include "esp_err.h"
 
 /*
- * 收到拍照指令时触发的回调函数类型。
+ * 收到指令时触发的回调函数类型。
+ * payload/payload_len 是指令内容，由调用方自行解释（本模块不关心指令语义）。
  * 回调在本模块自己的任务上下文中执行（不是 esp-mqtt 的事件任务），
  * 因此允许在回调里做拍照、发布等耗时操作。
  */
-typedef void (*mqtt_bridge_capture_cmd_cb_t)(void);
+typedef void (*mqtt_bridge_capture_cmd_cb_t)(const char *payload, int payload_len);
 
 /*
  * 功能：连接 MQTT Broker 并订阅拍照指令 topic，带超时等待连接建立
@@ -28,11 +29,14 @@ esp_err_t mqtt_bridge_init(mqtt_bridge_capture_cmd_cb_t on_capture_cmd, uint32_t
 
 /*
  * 功能：把一张图片发布到图片 topic，带超时等待 Broker 确认
- * 参数：buf 图片数据指针；len 数据长度（字节）；timeout_ms 等待确认的超时时间（毫秒）
+ * 参数：buf 图片数据指针；len 数据长度（字节）；
+ *       qos MQTT 服务质量：1 等 Broker 确认（可靠，单张抓拍用）；
+ *           0 不等确认（省掉一次往返，连续推流用，丢帧可接受）；
+ *       timeout_ms 等待确认的超时时间（毫秒），qos 为 0 时该参数无意义
  * 返回：ESP_OK 成功；ESP_ERR_TIMEOUT 超时；ESP_ERR_INVALID_STATE 未初始化；
  *       ESP_ERR_INVALID_ARG 参数非法
  */
-esp_err_t mqtt_bridge_publish_photo(const uint8_t *buf, size_t len, uint32_t timeout_ms);
+esp_err_t mqtt_bridge_publish_photo(const uint8_t *buf, size_t len, int qos, uint32_t timeout_ms);
 
 /*
  * 功能：断开连接并释放 MQTT 客户端资源

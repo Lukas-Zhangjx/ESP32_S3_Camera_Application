@@ -25,6 +25,8 @@ static const char *TAG = "mqtt_bridge";
 #define MQTT_BRIDGE_PUBLISHED_BIT BIT1
 #define MQTT_BRIDGE_CMD_TASK_STACK 4096
 #define MQTT_BRIDGE_CMD_TASK_PRIO  5
+#define MQTT_BRIDGE_CMD_MAX_LEN    31
+#define MQTT_BRIDGE_OUT_BUFFER_SIZE 16384
 
 static esp_mqtt_client_handle_t s_client = NULL;
 static EventGroupHandle_t s_event_group = NULL;
@@ -32,9 +34,11 @@ static mqtt_bridge_capture_cmd_cb_t s_capture_cb = NULL;
 static volatile int s_pending_publish_msg_id = -1;
 static SemaphoreHandle_t s_cmd_sem = NULL;
 static TaskHandle_t s_cmd_task = NULL;
+static char s_cmd_payload[MQTT_BRIDGE_CMD_MAX_LEN + 1];
+static int s_cmd_payload_len = 0;
 
 /*
- * 功能：拍照指令处理任务，收到通知后在自己的任务上下文里执行回调
+ * 功能：指令处理任务，收到通知后在自己的任务上下文里执行回调
  * 参数：arg 未使用
  * 返回：不返回
  *
@@ -48,7 +52,7 @@ static void mqtt_bridge_cmd_task(void *arg)
         /* 有限超时等待，不使用 portMAX_DELAY；超时就继续下一轮空转 */
         if (xSemaphoreTake(s_cmd_sem, pdMS_TO_TICKS(1000)) == pdTRUE) {
             if (s_capture_cb != NULL) {
-                s_capture_cb();
+                s_capture_cb(s_cmd_payload, s_cmd_payload_len);
             }
         }
     }
@@ -76,6 +80,11 @@ static void mqtt_bridge_event_handler(void *arg, esp_event_base_t base, int32_t 
         /* 只响应拍照指令 topic 上的消息，忽略其他意外数据 */
         if (event->topic_len == (int)strlen(CONFIG_MQTT_BRIDGE_CMD_TOPIC) &&
             strncmp(event->topic, CONFIG_MQTT_BRIDGE_CMD_TOPIC, event->topic_len) == 0) {
+            /* event->data 在回调返回后失效，先拷贝一份指令内容 */
+            int n = event->data_len < MQTT_BRIDGE_CMD_MAX_LEN ? event->data_len : MQTT_BRIDGE_CMD_MAX_LEN;
+            memcpy(s_cmd_payload, event->data, n);
+            s_cmd_payload[n] = '\0';
+            s_cmd_payload_len = n;
             /* 这里只做通知，真正的耗时工作交给 mqtt_bridge_cmd_task，
              * 避免堵住 esp-mqtt 的事件派发 */
             xSemaphoreGive(s_cmd_sem);
@@ -119,6 +128,9 @@ esp_err_t mqtt_bridge_init(mqtt_bridge_capture_cmd_cb_t on_capture_cmd, uint32_t
         .broker.verification.crt_bundle_attach = esp_crt_bundle_attach,
         .credentials.username = MQTT_SECRET_USERNAME,
         .credentials.authentication.password = MQTT_SECRET_PASSWORD,
+        /* 默认发送缓冲区只有 1KB，一张 9KB 的图会被切成很多小块写出去，
+         * TLS 下每块都要单独加密打包，发布耗时明显变长 */
+        .buffer.out_size = MQTT_BRIDGE_OUT_BUFFER_SIZE,
     };
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -146,7 +158,7 @@ esp_err_t mqtt_bridge_init(mqtt_bridge_capture_cmd_cb_t on_capture_cmd, uint32_t
     return ESP_OK;
 }
 
-esp_err_t mqtt_bridge_publish_photo(const uint8_t *buf, size_t len, uint32_t timeout_ms)
+esp_err_t mqtt_bridge_publish_photo(const uint8_t *buf, size_t len, int qos, uint32_t timeout_ms)
 {
     if (buf == NULL || len == 0) {
         return ESP_ERR_INVALID_ARG;
@@ -159,11 +171,18 @@ esp_err_t mqtt_bridge_publish_photo(const uint8_t *buf, size_t len, uint32_t tim
     xEventGroupClearBits(s_event_group, MQTT_BRIDGE_PUBLISHED_BIT);
 
     int msg_id = esp_mqtt_client_publish(s_client, CONFIG_MQTT_BRIDGE_IMAGE_TOPIC,
-                                          (const char *)buf, (int)len, 1, 0);
+                                          (const char *)buf, (int)len, qos, 0);
     if (msg_id < 0) {
         ESP_LOGE(TAG, "publish failed to enqueue, fallback: skip");
         return ESP_FAIL;
     }
+
+    /* QoS 0 没有确认报文，esp-mqtt 也就不会产生 PUBLISHED 事件，
+     * 这里直接返回，否则每帧都要白等一个超时 */
+    if (qos == 0) {
+        return ESP_OK;
+    }
+
     s_pending_publish_msg_id = msg_id;
 
     /* 有限超时等待 Broker 确认，不使用 portMAX_DELAY 永久阻塞 */
