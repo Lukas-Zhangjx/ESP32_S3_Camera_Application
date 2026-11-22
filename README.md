@@ -34,6 +34,7 @@ components/
 ├── wifi/            WiFi 连接
 ├── mqtt_bridge/     MQTT 连接、订阅指令、发布图片
 ├── storage/         microSD 卡存储
+├── servo/           舵机角度控制（LEDC PWM）
 └── stream_service/  单张抓拍与连续推流，串起上面几个模块
 main/                只做组装，调用各模块的公开接口
 tools/               调试辅助工具
@@ -78,6 +79,7 @@ idf.py -p /dev/cu.usbmodemXXXX flash monitor
 | 拍单张 | `esp32cam/s3/capture/cmd` | 任意内容（如 `go`） |
 | 开始连续推流 | `esp32cam/s3/capture/cmd` | `start` |
 | 停止连续推流 | `esp32cam/s3/capture/cmd` | `stop` |
+| 转动舵机 | `esp32cam/s3/capture/cmd` | `servo:<角度>`，角度 0 到 180，如 `servo:90` |
 | 接收 JPEG 图片数据 | `esp32cam/s3/capture/image` | — |
 
 连续推流时板子按 `Stream Service Configuration` 里配置的间隔自己持续拍照发布，
