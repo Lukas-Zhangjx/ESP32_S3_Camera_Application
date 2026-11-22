@@ -115,3 +115,7 @@ MQTT Explorer 之类的通用客户端会把图片当文本显示成乱码，仓
 ## 开发规范
 
 本项目的分支策略、命名规范、超时策略等要求见 [CLAUDE.md](CLAUDE.md)。
+
+## 接线
+
+麦克风、功放、舵机的接线方式和可用引脚分配见 [docs/wiring.md](docs/wiring.md)。
