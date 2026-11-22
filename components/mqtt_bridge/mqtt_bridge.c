@@ -10,6 +10,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 
@@ -17,11 +19,36 @@ static const char *TAG = "mqtt_bridge";
 
 #define MQTT_BRIDGE_CONNECTED_BIT BIT0
 #define MQTT_BRIDGE_PUBLISHED_BIT BIT1
+#define MQTT_BRIDGE_CMD_TASK_STACK 4096
+#define MQTT_BRIDGE_CMD_TASK_PRIO  5
 
 static esp_mqtt_client_handle_t s_client = NULL;
 static EventGroupHandle_t s_event_group = NULL;
 static mqtt_bridge_capture_cmd_cb_t s_capture_cb = NULL;
 static volatile int s_pending_publish_msg_id = -1;
+static SemaphoreHandle_t s_cmd_sem = NULL;
+static TaskHandle_t s_cmd_task = NULL;
+
+/*
+ * 功能：拍照指令处理任务，收到通知后在自己的任务上下文里执行回调
+ * 参数：arg 未使用
+ * 返回：不返回
+ *
+ * 为什么要单开一个任务：MQTT 事件回调跑在 esp-mqtt 自己的任务里，如果在回调
+ * 中直接执行耗时的拍照+发布，发布确认事件就没法被派发（要派发它的正是被堵住
+ * 的那个任务），必然超时，进而触发 esp-mqtt 重传、收到重复图片。
+ */
+static void mqtt_bridge_cmd_task(void *arg)
+{
+    while (1) {
+        /* 有限超时等待，不使用 portMAX_DELAY；超时就继续下一轮空转 */
+        if (xSemaphoreTake(s_cmd_sem, pdMS_TO_TICKS(1000)) == pdTRUE) {
+            if (s_capture_cb != NULL) {
+                s_capture_cb();
+            }
+        }
+    }
+}
 
 /*
  * 功能：MQTT 事件回调，处理连接建立、收到指令、发布确认
@@ -43,10 +70,11 @@ static void mqtt_bridge_event_handler(void *arg, esp_event_base_t base, int32_t 
         break;
     case MQTT_EVENT_DATA:
         /* 只响应拍照指令 topic 上的消息，忽略其他意外数据 */
-        if (s_capture_cb != NULL &&
-            event->topic_len == (int)strlen(CONFIG_MQTT_BRIDGE_CMD_TOPIC) &&
+        if (event->topic_len == (int)strlen(CONFIG_MQTT_BRIDGE_CMD_TOPIC) &&
             strncmp(event->topic, CONFIG_MQTT_BRIDGE_CMD_TOPIC, event->topic_len) == 0) {
-            s_capture_cb();
+            /* 这里只做通知，真正的耗时工作交给 mqtt_bridge_cmd_task，
+             * 避免堵住 esp-mqtt 的事件派发 */
+            xSemaphoreGive(s_cmd_sem);
         }
         break;
     case MQTT_EVENT_PUBLISHED:
@@ -66,6 +94,18 @@ esp_err_t mqtt_bridge_init(mqtt_bridge_capture_cmd_cb_t on_capture_cmd, uint32_t
     s_event_group = xEventGroupCreate();
     if (s_event_group == NULL) {
         ESP_LOGE(TAG, "event group create failed, fallback: abort init");
+        return ESP_ERR_NO_MEM;
+    }
+
+    s_cmd_sem = xSemaphoreCreateBinary();
+    if (s_cmd_sem == NULL) {
+        ESP_LOGE(TAG, "semaphore create failed, fallback: abort init");
+        return ESP_ERR_NO_MEM;
+    }
+
+    if (xTaskCreate(mqtt_bridge_cmd_task, "mqtt_cmd", MQTT_BRIDGE_CMD_TASK_STACK,
+                    NULL, MQTT_BRIDGE_CMD_TASK_PRIO, &s_cmd_task) != pdPASS) {
+        ESP_LOGE(TAG, "cmd task create failed, fallback: abort init");
         return ESP_ERR_NO_MEM;
     }
 
@@ -135,5 +175,9 @@ void mqtt_bridge_deinit(void)
         esp_mqtt_client_stop(s_client);
         esp_mqtt_client_destroy(s_client);
         s_client = NULL;
+    }
+    if (s_cmd_task != NULL) {
+        vTaskDelete(s_cmd_task);
+        s_cmd_task = NULL;
     }
 }

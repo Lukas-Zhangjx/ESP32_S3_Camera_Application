@@ -11,7 +11,11 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-/* 收到拍照指令时触发的回调函数类型 */
+/*
+ * 收到拍照指令时触发的回调函数类型。
+ * 回调在本模块自己的任务上下文中执行（不是 esp-mqtt 的事件任务），
+ * 因此允许在回调里做拍照、发布等耗时操作。
+ */
 typedef void (*mqtt_bridge_capture_cmd_cb_t)(void);
 
 /*
