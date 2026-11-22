@@ -1,0 +1,24 @@
+menu "Servo Configuration"
+
+    config SERVO_PIN
+        int "舵机信号线 GPIO"
+        range 0 48
+        default 1
+        help
+            板子上剩余可用引脚不多（1、2、14、21、41、42、47），默认用 GPIO1。
+            接线见 docs/wiring.md。
+
+    config SERVO_MIN_PULSE_US
+        int "0 度对应的脉宽（微秒）"
+        range 100 2000
+        default 500
+        help
+            标准 RC 舵机一般是 500us 对应 0 度。不同品牌有差异，
+            如果转不到位或者转过头，调这两个值。
+
+    config SERVO_MAX_PULSE_US
+        int "180 度对应的脉宽（微秒）"
+        range 1000 3000
+        default 2500
+
+endmenu

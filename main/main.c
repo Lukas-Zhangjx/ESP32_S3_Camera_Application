@@ -3,8 +3,9 @@
  * 功能概述：组装各功能模块，不实现具体业务逻辑。流程：WiFi 连接 → 摄像头
  * 初始化 → 推流服务初始化 → MQTT 桥接初始化；收到 MQTT 指令后按内容分发给
  * 推流服务。
- * 依赖：wifi、camera、storage、mqtt_bridge、stream_service 模块
+ * 依赖：wifi、camera、storage、servo、mqtt_bridge、stream_service 模块
  */
+#include <stdlib.h>
 #include <string.h>
 
 #include "camera.h"
@@ -12,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mqtt_bridge.h"
+#include "servo.h"
 #include "storage.h"
 #include "stream_service.h"
 #include "wifi.h"
@@ -20,10 +22,11 @@ static const char *TAG = "app_main";
 
 /*
  * 功能：收到 MQTT 指令时的回调，按指令内容分发
- * 参数：payload 指令内容；payload_len 内容长度
+ * 参数：payload 指令内容（已补 '\0'）；payload_len 内容长度
  * 返回：无
  *
- * 指令约定："start" 开始连续推流，"stop" 停止，其他内容（含空）拍单张。
+ * 指令约定："start" 开始连续推流，"stop" 停止，
+ * "servo:<角度>" 转动舵机（如 servo:90），其他内容（含空）拍单张。
  */
 static void on_mqtt_cmd(const char *payload, int payload_len)
 {
@@ -31,6 +34,8 @@ static void on_mqtt_cmd(const char *payload, int payload_len)
         stream_service_start();
     } else if (payload_len == 4 && strncmp(payload, "stop", 4) == 0) {
         stream_service_stop();
+    } else if (payload_len > 6 && strncmp(payload, "servo:", 6) == 0) {
+        servo_set_angle(atoi(payload + 6));
     } else {
         stream_service_capture_once();
     }
@@ -53,6 +58,11 @@ void app_main(void)
     /* SD 卡是可选能力：没插卡也要能正常拍照推流，所以失败只警告不中断 */
     if (storage_init() != ESP_OK) {
         ESP_LOGW(TAG, "storage unavailable, photos will not be saved to SD card");
+    }
+
+    /* 舵机同理，没接也不影响摄像头 */
+    if (servo_init() != ESP_OK) {
+        ESP_LOGW(TAG, "servo unavailable, angle commands will be ignored");
     }
 
     err = stream_service_init();

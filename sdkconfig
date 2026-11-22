@@ -2304,6 +2304,14 @@ CONFIG_MQTT_BRIDGE_IMAGE_TOPIC="esp32cam/s3/capture/image"
 # end of MQTT Bridge Configuration
 
 #
+# Servo Configuration
+#
+CONFIG_SERVO_PIN=1
+CONFIG_SERVO_MIN_PULSE_US=500
+CONFIG_SERVO_MAX_PULSE_US=2500
+# end of Servo Configuration
+
+#
 # Storage Configuration
 #
 CONFIG_STORAGE_MOUNT_POINT="/sdcard"

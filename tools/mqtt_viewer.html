@@ -119,6 +119,12 @@
   </div>
 
   <div class="card">
+    <label for="angle">舵机角度：<b id="angleVal">90</b>°</label>
+    <input id="angle" type="range" min="0" max="180" value="90" step="1" disabled
+           style="width:100%; margin-top:6px;">
+  </div>
+
+  <div class="card">
     <div class="grid">
       <div>
         <label for="broker">Broker (WebSocket)</label>
@@ -165,6 +171,7 @@ function setConnected(ok) {
   $("connBtn").textContent = ok ? "断开" : "连接";
   $("shotBtn").disabled = !ok;
   $("liveBtn").disabled = !ok;
+  $("angle").disabled = !ok;
   if (!ok) setLive(false);
 }
 
@@ -248,6 +255,19 @@ $("liveBtn").addEventListener("click", () => {
   client.publish(topic, next ? "start" : "stop", { qos: 1 });
   setLive(next);
   log(next ? "已开启实时推流" : "已停止实时推流");
+});
+
+// 拖动滑块时节流发送，避免每一像素都发一条指令把 Broker 刷爆
+let angleTimer = null;
+$("angle").addEventListener("input", () => {
+  const deg = $("angle").value;
+  $("angleVal").textContent = deg;
+  if (!client || !client.connected) return;
+  clearTimeout(angleTimer);
+  angleTimer = setTimeout(() => {
+    client.publish($("cmdTopic").value.trim(), "servo:" + deg, { qos: 1 });
+    log("舵机 → " + deg + "°");
+  }, 120);
 });
 
 // 关掉页面前通知板子停止推流，免得它一直空推
