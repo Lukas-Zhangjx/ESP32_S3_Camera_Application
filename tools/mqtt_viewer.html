@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32-S3 摄像头查看器</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --fg: #1b1f24;
+    --muted: #6b7480;
+    --line: #dfe3e8;
+    --accent: #2f6fd0;
+    --ok: #1f9254;
+    --err: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181c;
+      --card: #1e2227;
+      --fg: #e8eaed;
+      --muted: #9aa3ad;
+      --line: #313740;
+      --accent: #5b9bf5;
+      --ok: #45c07f;
+      --err: #e86a5c;
+    }
+  }
+  body {
+    margin: 0;
+    padding: 24px 16px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  /* 作者样式里的 display 会压过 UA 的 [hidden]，这里强制生效 */
+  [hidden] { display: none !important; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary { background: transparent; color: var(--fg); border-color: var(--line); }
+  .status { font-size: 13px; color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--err); }
+  img#shot {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    display: block;
+    background: var(--bg);
+  }
+  .empty {
+    display: grid;
+    place-items: center;
+    height: 260px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type=text] {
+    font: inherit; width: 100%; box-sizing: border-box;
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); max-height: 140px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ESP32-S3 摄像头查看器</h1>
+  <div class="sub">通过 MQTT 触发拍照并显示回传的图片</div>
+
+  <div class="card">
+    <div class="row" style="justify-content: space-between;">
+      <span class="status"><span id="dot" class="dot off"></span><span id="connText">未连接</span></span>
+      <div class="row">
+        <button id="connBtn" class="secondary">连接</button>
+        <button id="shotBtn" disabled>拍照</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="placeholder" class="empty">还没有收到图片，点「拍照」试试</div>
+    <img id="shot" alt="摄像头画面" hidden>
+    <div class="meta">
+      <span id="sizeText">—</span>
+      <span id="timeText">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="broker">Broker (WebSocket)</label>
+        <input id="broker" type="text" value="wss://broker.emqx.io:8084/mqtt">
+      </div>
+      <div>
+        <label for="cmdTopic">拍照指令 Topic</label>
+        <input id="cmdTopic" type="text" value="esp32cam/s3/capture/cmd">
+      </div>
+      <div>
+        <label for="imgTopic">图片 Topic</label>
+        <input id="imgTopic" type="text" value="esp32cam/s3/capture/image">
+      </div>
+    </div>
+    <div class="log" id="log" style="margin-top: 12px;"></div>
+  </div>
+</div>
+
+<script>
+let client = null;
+let lastUrl = null;
+
+const $ = (id) => document.getElementById(id);
+
+function log(msg) {
+  const el = $("log");
+  const t = new Date().toLocaleTimeString();
+  el.insertAdjacentHTML("afterbegin", `<div>[${t}] ${msg}</div>`);
+}
+
+function setConnected(ok) {
+  $("dot").className = "dot " + (ok ? "on" : "off");
+  $("connText").textContent = ok ? "已连接" : "未连接";
+  $("connBtn").textContent = ok ? "断开" : "连接";
+  $("shotBtn").disabled = !ok;
+}
+
+function connect() {
+  const url = $("broker").value.trim();
+  log("连接 " + url + " …");
+  client = mqtt.connect(url, { connectTimeout: 8000, reconnectPeriod: 0 });
+
+  client.on("connect", () => {
+    setConnected(true);
+    const topic = $("imgTopic").value.trim();
+    client.subscribe(topic, { qos: 0 }, (err) => {
+      log(err ? ("订阅失败: " + err.message) : ("已订阅 " + topic));
+    });
+  });
+
+  client.on("message", (topic, payload) => {
+    // payload 是 JPEG 原始字节，转成 blob URL 直接渲染
+    const blob = new Blob([payload], { type: "image/jpeg" });
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+    $("shot").src = lastUrl;
+    $("shot").hidden = false;
+    $("placeholder").hidden = true;
+    $("sizeText").textContent = (payload.length / 1024).toFixed(1) + " KB";
+    $("timeText").textContent = new Date().toLocaleTimeString();
+    log("收到图片 " + payload.length + " 字节");
+  });
+
+  client.on("error", (err) => log("错误: " + err.message));
+  client.on("close", () => { setConnected(false); log("连接已关闭"); });
+}
+
+$("connBtn").addEventListener("click", () => {
+  if (client && client.connected) {
+    client.end(true);
+    client = null;
+    setConnected(false);
+  } else {
+    connect();
+  }
+});
+
+$("shotBtn").addEventListener("click", () => {
+  if (!client || !client.connected) return;
+  const topic = $("cmdTopic").value.trim();
+  client.publish(topic, "go", { qos: 1 });
+  log("已发送拍照指令 → " + topic);
+});
+</script>
+</body>
+</html>
