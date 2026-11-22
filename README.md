@@ -8,7 +8,12 @@
 |---|---|
 | 开发板 | ESP32-S3-WROOM N16R8（16MB Flash + 8MB Octal PSRAM） |
 | 摄像头 | OV3660（FPC 排线直插板载插座） |
+| 存储卡 | 板子背面 microSD 卡槽，SDMMC 1-bit 模式（CLK 39 / CMD 38 / DAT0 40） |
 | 烧录口 | 板上的 **USB-UART** 口（不是 USB-OTG） |
+
+SD 卡需要是 **FAT32** 格式（Mac 上用磁盘工具抹掉，格式选 MS-DOS (FAT)、方案选
+主引导记录）。固件不会自动格式化，挂载失败只警告不中断，避免误抹卡上数据。
+单张抓拍的照片会存成 `/sdcard/0001.jpg` 这样的递增编号；连续推流的帧不存卡。
 
 摄像头引脚已在 `components/camera/Kconfig` 中配置好，实机验证通过：
 
@@ -25,12 +30,13 @@ PWDN / RESET 未连接（配置为 -1）。
 
 ```
 components/
-├── camera/        摄像头初始化与取帧
-├── stream_service/ 单张抓拍与连续推流
-├── wifi/          WiFi 连接
-└── mqtt_bridge/   MQTT 连接、订阅指令、发布图片
-main/              只做组装，把上面几个模块接起来
-tools/             调试辅助工具
+├── camera/          摄像头初始化与取帧
+├── wifi/            WiFi 连接
+├── mqtt_bridge/     MQTT 连接、订阅指令、发布图片
+├── storage/         microSD 卡存储
+└── stream_service/  单张抓拍与连续推流，串起上面几个模块
+main/                只做组装，调用各模块的公开接口
+tools/               调试辅助工具
 ```
 
 模块之间只通过公开头文件里的函数接口交互，详见 [CLAUDE.md](CLAUDE.md) 中的开发规范。
