@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "mqtt_bridge.c"
     INCLUDE_DIRS "include"
-    PRIV_REQUIRES mqtt
+    PRIV_REQUIRES mqtt mbedtls
 )

@@ -2,10 +2,11 @@ menu "MQTT Bridge Configuration"
 
     config MQTT_BRIDGE_BROKER_URI
         string "MQTT Broker URI"
-        default "mqtt://broker.emqx.io:1883"
+        default "mqtts://989e0b4e491b4f6ab4c135931ceb0007.s1.eu.hivemq.cloud:8883"
         help
-            默认是公共免费测试 Broker，无鉴权，仅用于验证流程。长期使用
-            建议换成有账号鉴权的云厂商 IoT 平台地址。
+            HiveMQ Cloud 集群地址，强制 TLS（mqtts://，端口 8883）。
+            登录用户名/密码见 mqtt_secrets.h.example。
+            换 Broker 只需改这一项，代码不用动。
 
     config MQTT_BRIDGE_CMD_TOPIC
         string "拍照指令 Topic"

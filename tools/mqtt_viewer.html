@@ -120,7 +120,15 @@
     <div class="grid">
       <div>
         <label for="broker">Broker (WebSocket)</label>
-        <input id="broker" type="text" value="wss://broker.emqx.io:8084/mqtt">
+        <input id="broker" type="text" value="wss://989e0b4e491b4f6ab4c135931ceb0007.s1.eu.hivemq.cloud:8884/mqtt">
+      </div>
+      <div>
+        <label for="user">用户名</label>
+        <input id="user" type="text" placeholder="HiveMQ Access Management 里创建的用户名">
+      </div>
+      <div>
+        <label for="pass">密码</label>
+        <input id="pass" type="password" placeholder="对应的密码">
       </div>
       <div>
         <label for="cmdTopic">拍照指令 Topic</label>
@@ -156,8 +164,14 @@ function setConnected(ok) {
 
 function connect() {
   const url = $("broker").value.trim();
+  const opts = { connectTimeout: 8000, reconnectPeriod: 0 };
+  const user = $("user").value.trim();
+  if (user) {
+    opts.username = user;
+    opts.password = $("pass").value;
+  }
   log("连接 " + url + " …");
-  client = mqtt.connect(url, { connectTimeout: 8000, reconnectPeriod: 0 });
+  client = mqtt.connect(url, opts);
 
   client.on("connect", () => {
     setConnected(true);

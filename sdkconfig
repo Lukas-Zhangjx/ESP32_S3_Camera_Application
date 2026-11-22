@@ -2298,7 +2298,7 @@ CONFIG_CAMERA_XCLK_FREQ_HZ=20000000
 #
 # MQTT Bridge Configuration
 #
-CONFIG_MQTT_BRIDGE_BROKER_URI="mqtt://broker.emqx.io:1883"
+CONFIG_MQTT_BRIDGE_BROKER_URI="mqtts://989e0b4e491b4f6ab4c135931ceb0007.s1.eu.hivemq.cloud:8883"
 CONFIG_MQTT_BRIDGE_CMD_TOPIC="esp32cam/s3/capture/cmd"
 CONFIG_MQTT_BRIDGE_IMAGE_TOPIC="esp32cam/s3/capture/image"
 # end of MQTT Bridge Configuration

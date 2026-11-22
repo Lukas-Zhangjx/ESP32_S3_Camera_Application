@@ -36,13 +36,19 @@ tools/             调试辅助工具
 
 ## 首次构建前
 
-WiFi 账号密码不入库，需要自己创建本地配置文件：
+账号密码一律不入库，需要自己创建两个本地配置文件：
 
 ```bash
 cp components/wifi/wifi_secrets.h.example components/wifi/wifi_secrets.h
+cp components/mqtt_bridge/mqtt_secrets.h.example components/mqtt_bridge/mqtt_secrets.h
 ```
 
-然后编辑 `wifi_secrets.h` 填入真实的 SSID 和密码。该文件已在 `.gitignore` 中，不会被提交。
+分别填入：
+
+- `wifi_secrets.h` — WiFi 的 SSID 和密码
+- `mqtt_secrets.h` — MQTT Broker 的用户名和密码（HiveMQ Cloud 控制台 → Access Management 创建）
+
+两个文件都已在 `.gitignore` 中，不会被提交。
 
 ## 构建与烧录
 
@@ -65,9 +71,13 @@ idf.py -p /dev/cu.usbmodemXXXX flash monitor
 | 发送拍照指令（内容任意） | `esp32cam/s3/capture/cmd` |
 | 接收 JPEG 图片数据 | `esp32cam/s3/capture/image` |
 
-Broker 地址和 topic 可在 `idf.py menuconfig` → `MQTT Bridge Configuration` 中修改。
-默认使用公共测试服务器 `broker.emqx.io:1883`，无鉴权，任何人知道 topic 名即可访问，
-正式使用建议换成有账号鉴权的 IoT 平台。
+Broker 地址和 topic 可在 `idf.py menuconfig` → `MQTT Bridge Configuration` 中修改，
+用户名密码在 `mqtt_secrets.h` 里。当前使用 HiveMQ Cloud 私有集群，强制 TLS
+（`mqtts://`，端口 8883），服务端证书用 ESP-IDF 自带的根证书包校验。
+
+在 HiveMQ 控制台的 Access Management 里，除了创建凭据，还要给凭据加一条
+权限：Permission Type 选 `Publish and Subscribe`，Topic Filter 填 `esp32cam/#`，
+否则连得上但收发会被拒绝。
 
 ### 查看图片
 
@@ -76,14 +86,14 @@ MQTT Explorer 之类的通用客户端会把图片当文本显示成乱码，仓
 **直接用浏览器打开 [`tools/mqtt_viewer.html`](tools/mqtt_viewer.html) 即可**，不需要任何服务器。
 页面功能：
 
-- 点「连接」接入 Broker（通过 MQTT over WebSocket）
+- 填入用户名密码（同 `mqtt_secrets.h` 里那组），点「连接」接入 Broker
+  （走 MQTT over WebSocket Secure，`wss://`，端口 8884）
 - 点「拍照」下发指令
 - 回传的 JPEG 直接渲染显示，并显示大小和时间
 - Broker 地址与 topic 可在页面上直接修改
 
-> 注意：公共 Broker `broker.emqx.io` 禁止订阅通配符 `#`。若用 MQTT Explorer，
-> 需要在连接的 ADVANCED 设置里把订阅主题改成具体路径（如 `esp32cam/#`），
-> 否则界面会一直是空的且不报错。
+> 用 MQTT Explorer 等通用客户端时注意：订阅主题要填具体路径（如 `esp32cam/#`）。
+> 有些 Broker 会拒绝通配符 `#` 的订阅请求且不返回任何错误提示，界面会一直是空的。
 
 ## 开发规范
 

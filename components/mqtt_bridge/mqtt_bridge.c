@@ -2,12 +2,16 @@
  * MQTT 桥接模块实现
  * 功能概述：封装 esp-mqtt，对外只暴露 mqtt_bridge.h 声明的接口。
  * 依赖：esp-mqtt（ESP-IDF 的 mqtt 组件，公共头文件名 mqtt_client.h，
- * 和本模块头文件 mqtt_bridge.h 刻意区分开避免重名冲突）
+ * 和本模块头文件 mqtt_bridge.h 刻意区分开避免重名冲突）；
+ * TLS 根证书用 ESP-IDF 自带的证书包；登录凭据读取自 mqtt_secrets.h
+ * （本地文件，已加入 .gitignore，参考同目录下的 mqtt_secrets.h.example 创建）
  */
 #include "mqtt_bridge.h"
 
 #include <string.h>
+#include "esp_crt_bundle.h"
 #include "esp_log.h"
+#include "mqtt_secrets.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
@@ -111,6 +115,10 @@ esp_err_t mqtt_bridge_init(mqtt_bridge_capture_cmd_cb_t on_capture_cmd, uint32_t
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = CONFIG_MQTT_BRIDGE_BROKER_URI,
+        /* mqtts:// 地址需要校验服务端证书，用 ESP-IDF 自带的公共根证书包 */
+        .broker.verification.crt_bundle_attach = esp_crt_bundle_attach,
+        .credentials.username = MQTT_SECRET_USERNAME,
+        .credentials.authentication.password = MQTT_SECRET_PASSWORD,
     };
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
